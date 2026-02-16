@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planificador Keto Interactivo</title>
+    <style>
+        :root {
+            --primary: #556B2F; /* Verde Oliva */
+            --secondary: #BCB88A; /* Beige */
+            --bg: #F5F5DC;
+            --card-bg: #FFFFFF;
+            --text: #333333;
+            --danger: #e74c3c;
+            --success: #2ecc71;
+            --gray: #95a5a6;
+            --shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg: #1a1a1a;
+            --card-bg: #2d2d2d;
+            --text: #f0f0f0;
+            --secondary: #8b8970;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .container { max-width: 900px; margin: 0 auto; }
+
+        /* Header & Navigation */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .nav-group { display: flex; gap: 10px; background: var(--secondary); padding: 5px; border-radius: 12px; }
+        .nav-btn {
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            background: transparent;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .nav-btn.active { background: var(--primary); color: white; }
+
+        /* Card Styles */
+        .card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            shadow: var(--shadow);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        /* Form Inputs */
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid var(--gray);
+            border-radius: 5px;
+            background: var(--card-bg);
+            color: var(--text);
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        .btn-add { background: var(--primary); color: white; width: 100%; margin-top: 10px; }
+        .btn-del { background: var(--danger); color: white; padding: 5px 10px; }
+
+        /* Progress Bars */
+        .progress-container { margin: 15px 0; }
+        .bar-bg { background: #eee; border-radius: 10px; height: 12px; overflow: hidden; }
+        .bar-fill { height: 100%; width: 0%; transition: width 0.5s ease; }
+        .status-msg { font-size: 0.85em; font-weight: bold; margin-top: 5px; }
+
+        /* Table/List Styles */
+        .food-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 40px;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .food-header { font-weight: bold; border-bottom: 2px solid var(--primary); }
+
+        /* Shopping List */
+        .shop-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #eee; }
+        .shop-item.checked { text-decoration: line-through; opacity: 0.6; }
+
+        .hidden { display: none; }
+        .print-only { display: none; }
+
+        @media print {
+            .no-print { display: none; }
+            .print-only { display: block; }
+            .card { box-shadow: none; border: 1px solid #ccc; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header class="no-print">
+        <h1>🥑 Keto Planner</h1>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="toggleTheme()" class="nav-btn">🌓</button>
+            <button onclick="window.print()" class="nav-btn">Print 🖨️</button>
+        </div>
+    </header>
+
+    <div class="no-print" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
+        <div class="nav-group" id="personTabs">
+            <button class="nav-btn active" onclick="switchPerson('A')">Persona A (4 Comidas)</button>
+            <button class="nav-btn" onclick="switchPerson('B')">Persona B (OMAD)</button>
+        </div>
+        <div class="nav-group" id="weekTabs">
+            <button class="nav-btn active" onclick="switchWeek(1)">Semana 1</button>
+            <button class="nav-btn" onclick="switchWeek(2)">Semana 2</button>
+            <button class="nav-btn" onclick="addWeek()">+ Nueva</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 id="profileTitle">Perfil Persona A</h2>
+        <div class="grid-2">
+            <div>
+                <label>Peso Actual (kg):</label>
+                <input type="number" step="0.1" id="weightInput" onchange="updateProfile()">
+            </div>
+            <div>
+                <label>Calorías Objetivo:</label>
+                <input type="number" id="targetCalories" onchange="updateProfile()">
+            </div>
+        </div>
+        <div id="proteinRec" style="margin-top: 15px; padding: 10px; background: var(--secondary); border-radius: 8px; color: white;">
+            Proteína recomendada diaria: --g
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📊 Resumen Diario - <span id="currentViewLabel">P1 - S1</span></h3>
+        <div class="progress-container">
+            <label>Calorías: <span id="calText">0 / 0</span> kcal</label>
+            <div class="bar-bg"><div id="calBar" class="bar-fill"></div></div>
+            <div id="calStatus" class="status-msg"></div>
+        </div>
+        <div class="progress-container">
+            <label>Proteínas: <span id="protText">0 / 0</span> g</label>
+            <div class="bar-bg"><div id="protBar" class="bar-fill"></div></div>
+            <div id="protStatus" class="status-msg"></div>
+        </div>
+    </div>
+
+    <div id="mealsContainer">
+        </div>
+
+    <div class="card no-print">
+        <h2>🛒 Lista de Supermercado</h2>
+        <div class="grid-2" style="margin-bottom: 15px;">
+            <input type="text" id="newItemName" placeholder="Nombre producto...">
+            <select id="newItemCat">
+                <option value="Proteínas">Proteínas</option>
+                <option value="Verduras">Verduras</option>
+                <option value="Lácteos">Lácteos</option>
+                <option value="Otros">Otros</option>
+            </select>
+        </div>
+        <button class="btn-add" onclick="addToShopList()">Agregar a la lista</button>
+        <div id="shoppingListDisplay" style="margin-top: 20px;"></div>
+        <button onclick="resetShopList()" style="margin-top: 20px; font-size: 0.8em; background: none; color: var(--gray); border: 1px solid var(--gray);">Reiniciar Lista</button>
+    </div>
+</div>
+
+<script>
+    // --- INITIAL STATE ---
+    let state = {
+        currentPerson: 'A',
+        currentWeek: 1,
+        weeks: [1, 2],
+        theme: 'light',
+        profiles: {
+            'A': { weight: 104.75, targetCals: 2200, protRange: [1.6, 2.0] },
+            'B': { weight: 85.3, targetCals: 1800, protRange: [1.8, 2.2] }
+        },
+        // Data structure: data[person][week][mealIndex] = [foodItems]
+        data: {
+            'A': { 1: [[], [], [], []], 2: [[], [], [], []] },
+            'B': { 1: [[]], 2: [[]] }
+        },
+        shoppingList: []
+    };
+
+    // --- CORE LOGIC ---
+
+    function init() {
+        const saved = localStorage.getItem('keto_planner_data');
+        if (saved) state = JSON.parse(saved);
+        render();
+    }
+
+    function save() {
+        localStorage.setItem('keto_planner_data', JSON.stringify(state));
+    }
+
+    function switchPerson(p) {
+        state.currentPerson = p;
+        document.querySelectorAll('#personTabs .nav-btn').forEach((b, i) => {
+            b.classList.toggle('active', (i === 0 && p === 'A') || (i === 1 && p === 'B'));
+        });
+        render();
+    }
+
+    function switchWeek(w) {
+        state.currentWeek = w;
+        render();
+    }
+
+    function addWeek() {
+        const newWeek = state.weeks.length + 1;
+        state.weeks.push(newWeek);
+        state.data['A'][newWeek] = [[], [], [], []];
+        state.data['B'][newWeek] = [[]];
+        switchWeek(newWeek);
+    }
+
+    function updateProfile() {
+        const p = state.currentPerson;
+        state.profiles[p].weight = parseFloat(document.getElementById('weightInput').value);
+        state.profiles[p].targetCals = parseInt(document.getElementById('targetCalories').value);
+        save();
+        render();
+    }
+
+    // --- MEAL MANAGEMENT ---
+
+    function addFood(mealIdx) {
+        const food = {
+            id: Date.now(),
+            name: "Nuevo alimento",
+            qty: 100,
+            cals: 150,
+            prot: 20
+        };
+        state.data[state.currentPerson][state.currentWeek][mealIdx].push(food);
+        save();
+        render();
+    }
+
+    function updateFood(mealIdx, foodId, field, value) {
+        const meal = state.data[state.currentPerson][state.currentWeek][mealIdx];
+        const food = meal.find(f => f.id === foodId);
+        food[field] = field === 'name' ? value : parseFloat(value);
+        save();
+        renderStats(); // Update bars without full re-render for better UX
+    }
+
+    function removeFood(mealIdx, foodId) {
+        state.data[state.currentPerson][state.currentWeek][mealIdx] = 
+            state.data[state.currentPerson][state.currentWeek][mealIdx].filter(f => f.id !== foodId);
+        save();
+        render();
+    }
+
+    function duplicateMeal(mealIdx) {
+        const mealCopy = JSON.parse(JSON.stringify(state.data[state.currentPerson][state.currentWeek][mealIdx]));
+        mealCopy.forEach(f => f.id = Date.now() + Math.random());
+        state.data[state.currentPerson][state.currentWeek].push(mealCopy);
+        save();
+        render();
+    }
+
+    function removeMeal(mealIdx) {
+        if(state.data[state.currentPerson][state.currentWeek].length > 1) {
+            state.data[state.currentPerson][state.currentWeek].splice(mealIdx, 1);
+            save();
+            render();
+        }
+    }
+
+    // --- RENDERING ---
+
+    function render() {
+        const p = state.currentPerson;
+        const w = state.currentWeek;
+        const profile = state.profiles[p];
+
+        // Header info
+        document.getElementById('profileTitle').innerText = `Perfil Persona ${p}`;
+        document.getElementById('weightInput').value = profile.weight;
+        document.getElementById('targetCalories').value = profile.targetCals;
+        document.getElementById('currentViewLabel').innerText = `Persona ${p} - Semana ${w}`;
+
+        // Protein Rec
+        const minP = (profile.weight * profile.protRange[0]).toFixed(0);
+        const maxP = (profile.weight * profile.protRange[1]).toFixed(0);
+        document.getElementById('proteinRec').innerText = `Proteína recomendada diaria: ${minP}g - ${maxP}g`;
+
+        // Render Weeks Tabs
+        const weekHtml = state.weeks.map(nw => 
+            `<button class="nav-btn ${nw == w ? 'active' : ''}" onclick="switchWeek(${nw})">Semana ${nw}</button>`
+        ).join('') + `<button class="nav-btn" onclick="addWeek()">+ Nueva</button>`;
+        document.getElementById('weekTabs').innerHTML = weekHtml;
+
+        // Render Meals
+        const container = document.getElementById('mealsContainer');
+        container.innerHTML = '';
+
+        state.data[p][w].forEach((meal, mIdx) => {
+            let mealCals = 0;
+            let mealProt = 0;
+            
+            const mealCard = document.createElement('div');
+            mealCard.className = 'card';
+            
+            let html = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3>Comida ${mIdx + 1}</h3>
+                    <div>
+                        <button onclick="duplicateMeal(${mIdx})" title="Duplicar">👯</button>
+                        <button class="btn-del" onclick="removeMeal(${mIdx})">✕</button>
+                    </div>
+                </div>
+                <div class="food-item food-header">
+                    <div>Nombre</div><div>Gramos</div><div>Kcal</div><div>Prot</div><div></div>
+                </div>
+            `;
+
+            meal.forEach(food => {
+                mealCals += food.cals;
+                mealProt += food.prot;
+                html += `
+                    <div class="food-item">
+                        <input type="text" value="${food.name}" onchange="updateFood(${mIdx}, ${food.id}, 'name', this.value)">
+                        <input type="number" value="${food.qty}" onchange="updateFood(${mIdx}, ${food.id}, 'qty', this.value)">
+                        <input type="number" value="${food.cals}" onchange="updateFood(${mIdx}, ${food.id}, 'cals', this.value)">
+                        <input type="number" value="${food.prot}" onchange="updateFood(${mIdx}, ${food.id}, 'prot', this.value)">
+                        <button class="btn-del" onclick="removeFood(${mIdx}, ${food.id})">✕</button>
+                    </div>
+                `;
+            });
+
+            html += `
+                <button class="btn-add" onclick="addFood(${mIdx})">+ Agregar Alimento</button>
+                <div style="margin-top:10px; text-align:right; font-size:0.9em;">
+                    Subtotal: <strong>${mealCals} kcal</strong> | <strong>${mealProt}g Proteína</strong>
+                </div>
+            `;
+            
+            mealCard.innerHTML = html;
+            container.appendChild(mealCard);
+        });
+
+        const addMealBtn = document.createElement('button');
+        addMealBtn.className = 'nav-btn';
+        addMealBtn.style.width = "100%";
+        addMealBtn.style.marginBottom = "20px";
+        addMealBtn.innerText = "+ Agregar Nueva Comida";
+        addMealBtn.onclick = () => {
+            state.data[p][w].push([]);
+            save();
+            render();
+        };
+        container.appendChild(addMealBtn);
+
+        renderStats();
+        renderShopList();
+    }
+
+    function renderStats() {
+        const p = state.currentPerson;
+        const w = state.currentWeek;
+        const profile = state.profiles[p];
+        
+        let totalCals = 0;
+        let totalProt = 0;
+
+        state.data[p][w].forEach(meal => {
+            meal.forEach(f => {
+                totalCals += f.cals;
+                totalProt += f.prot;
+            });
+        });
+
+        // Calories Progress
+        const calPct = Math.min((totalCals / profile.targetCals) * 100, 100);
+        document.getElementById('calText').innerText = `${totalCals} / ${profile.targetCals}`;
+        document.getElementById('calBar').style.width = calPct + '%';
+        document.getElementById('calBar').style.backgroundColor = totalCals > profile.targetCals ? 'var(--danger)' : 'var(--primary)';
+        document.getElementById('calStatus').innerText = totalCals > profile.targetCals ? '⚠️ Exceso de calorías' : '✅ Dentro del objetivo';
+
+        // Protein Progress
+        const minProt = profile.weight * profile.protRange[0];
+        const protPct = Math.min((totalProt / minProt) * 100, 100);
+        document.getElementById('protText').innerText = `${totalProt} / ${minProt.toFixed(0)}`;
+        document.getElementById('protBar').style.width = protPct + '%';
+        
+        const protStatus = document.getElementById('protStatus');
+        if (totalProt < minProt) {
+            protStatus.innerText = '❌ ¡Falta proteína!';
+            protStatus.style.color = 'var(--danger)';
+            document.getElementById('protBar').style.backgroundColor = 'var(--danger)';
+        } else {
+            protStatus.innerText = '✅ Objetivo de proteína alcanzado';
+            protStatus.style.color = 'var(--success)';
+            document.getElementById('protBar').style.backgroundColor = 'var(--success)';
+        }
+    }
+
+    // --- SHOPPING LIST ---
+
+    function addToShopList() {
+        const name = document.getElementById('newItemName').value;
+        const cat = document.getElementById('newItemCat').value;
+        if(!name) return;
+
+        state.shoppingList.push({ id: Date.now(), name, cat, checked: false });
+        document.getElementById('newItemName').value = '';
+        save();
+        renderShopList();
+    }
+
+    function toggleShopItem(id) {
+        const item = state.shoppingList.find(i => i.id === id);
+        item.checked = !item.checked;
+        save();
+        renderShopList();
+    }
+
+    function deleteShopItem(id) {
+        state.shoppingList = state.shoppingList.filter(i => i.id !== id);
+        save();
+        renderShopList();
+    }
+
+    function resetShopList() {
+        if(confirm('¿Reiniciar lista de compras?')) {
+            state.shoppingList = [];
+            save();
+            renderShopList();
+        }
+    }
+
+    function renderShopList() {
+        const container = document.getElementById('shoppingListDisplay');
+        container.innerHTML = '';
+        
+        const categories = ['Proteínas', 'Verduras', 'Lácteos', 'Otros'];
+        
+        categories.forEach(cat => {
+            const items = state.shoppingList.filter(i => i.cat === cat);
+            if(items.length > 0) {
+                const catDiv = document.createElement('div');
+                catDiv.innerHTML = `<h4 style="margin-bottom:5px; color:var(--primary);">${cat}</h4>`;
+                items.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = `shop-item ${item.checked ? 'checked' : ''}`;
+                    itemDiv.innerHTML = `
+                        <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleShopItem(${item.id})">
+                        <span style="flex-grow:1">${item.name}</span>
+                        <button class="btn-del" style="padding:2px 6px" onclick="deleteShopItem(${item.id})">✕</button>
+                    `;
+                    catDiv.appendChild(itemDiv);
+                });
+                container.appendChild(catDiv);
+            }
+        });
+    }
+
+    function toggleTheme() {
+        state.theme = state.theme === 'light' ? 'dark' : 'light';
+        document.body.setAttribute('data-theme', state.theme);
+        save();
+    }
+
+    // Start App
+    init();
+    if(state.theme === 'dark') document.body.setAttribute('data-theme', 'dark');
+
+</script>
+
+</body>
+</html>
